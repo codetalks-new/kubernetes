@@ -32,12 +32,12 @@ import (
 //  2. a name of an index, and
 //  3. an "indexed value", which is produced by an IndexFunc and
 //     can be a field value or any other string computed from the object.
-type Indexer interface {
-	Store
+type IndexerT[V any] interface {
+	StoreT[V]
 	// Index returns the stored objects whose set of indexed values
 	// intersects the set of indexed values of the given object, for
 	// the named index
-	Index(indexName string, obj interface{}) ([]interface{}, error)
+	Index(indexName string, obj V) ([]V, error)
 	// IndexKeys returns the storage keys of the stored objects whose
 	// set of indexed values for the named index includes the given
 	// indexed value
@@ -46,7 +46,7 @@ type Indexer interface {
 	ListIndexFuncValues(indexName string) []string
 	// ByIndex returns the stored objects whose set of indexed values
 	// for the named index includes the given indexed value
-	ByIndex(indexName, indexedValue string) ([]interface{}, error)
+	ByIndex(indexName, indexedValue string) ([]V, error)
 	// GetIndexers return the indexers
 	GetIndexers() Indexers
 
@@ -55,8 +55,12 @@ type Indexer interface {
 	AddIndexers(newIndexers Indexers) error
 }
 
+type Indexer = IndexerT[any]
+
 // IndexFunc knows how to compute the set of indexed values for an object.
-type IndexFunc func(obj interface{}) ([]string, error)
+type IndexFuncT[V any] func(obj V) ([]string, error)
+
+type IndexFunc = IndexFuncT[any]
 
 // IndexFuncToKeyFuncAdapter adapts an indexFunc to a keyFunc.  This is only useful if your index function returns
 // unique values for every object.  This conversion can create errors when more than one key is found.  You
