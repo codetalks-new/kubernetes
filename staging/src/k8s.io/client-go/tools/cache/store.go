@@ -37,39 +37,41 @@ import (
 //
 // Reflector knows how to watch a server and update a Store.  This
 // package provides a variety of implementations of Store.
-type Store interface {
+type StoreT[V any] interface {
 
 	// Add adds the given object to the accumulator associated with the given object's key
-	Add(obj interface{}) error
+	Add(obj V) error
 
 	// Update updates the given object in the accumulator associated with the given object's key
-	Update(obj interface{}) error
+	Update(obj V) error
 
 	// Delete deletes the given object from the accumulator associated with the given object's key
-	Delete(obj interface{}) error
+	Delete(obj V) error
 
 	// List returns a list of all the currently non-empty accumulators
-	List() []interface{}
+	List() []V
 
 	// ListKeys returns a list of all the keys currently associated with non-empty accumulators
 	ListKeys() []string
 
 	// Get returns the accumulator associated with the given object's key
-	Get(obj interface{}) (item interface{}, exists bool, err error)
+	Get(obj V) (item V, exists bool, err error)
 
 	// GetByKey returns the accumulator associated with the given key
-	GetByKey(key string) (item interface{}, exists bool, err error)
+	GetByKey(key string) (item V, exists bool, err error)
 
 	// Replace will delete the contents of the store, using instead the
 	// given list. Store takes ownership of the list, you should not reference
 	// it after calling this function.
-	Replace([]interface{}, string) error
+	Replace([]V, string) error
 
 	// Resync is meaningless in the terms appearing here but has
 	// meaning in some implementations that have non-trivial
 	// additional behavior (e.g., DeltaFIFO).
 	Resync() error
 }
+
+type Store = StoreT[any]
 
 // KeyFunc knows how to make a key from an object. Implementations should be deterministic.
 type KeyFunc func(obj interface{}) (string, error)
