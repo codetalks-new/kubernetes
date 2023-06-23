@@ -74,24 +74,28 @@ type StoreT[V any] interface {
 type Store = StoreT[any]
 
 // KeyFunc knows how to make a key from an object. Implementations should be deterministic.
-type KeyFunc func(obj interface{}) (string, error)
+type KeyFuncT[V any] func(obj V) (string, error)
+
+type KeyFunc = KeyFuncT[any]
 
 // KeyError will be returned any time a KeyFunc gives an error; it includes the object
 // at fault.
-type KeyError struct {
-	Obj interface{}
+type KeyErrorT[V any] struct {
+	Obj V
 	Err error
 }
 
 // Error gives a human-readable description of the error.
-func (k KeyError) Error() string {
+func (k KeyErrorT[V]) Error() string {
 	return fmt.Sprintf("couldn't create key for object %+v: %v", k.Obj, k.Err)
 }
 
 // Unwrap implements errors.Unwrap
-func (k KeyError) Unwrap() error {
+func (k KeyErrorT[V]) Unwrap() error {
 	return k.Err
 }
+
+type KeyError = KeyErrorT[any]
 
 // ExplicitKey can be passed to MetaNamespaceKeyFunc if you have the key for
 // the object but not the object itself.
