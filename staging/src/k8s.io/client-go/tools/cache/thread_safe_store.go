@@ -38,18 +38,18 @@ import (
 // modifying objects stored by the indexers (if any) will *not* automatically lead
 // to a re-index. So it's not a good idea to directly modify the objects returned by
 // Get/List, in general.
-type ThreadSafeStore interface {
-	Add(key string, obj interface{})
-	Update(key string, obj interface{})
+type ThreadSafeStoreT[V any] interface {
+	Add(key string, obj V)
+	Update(key string, obj V)
 	Delete(key string)
-	Get(key string) (item interface{}, exists bool)
-	List() []interface{}
+	Get(key string) (item V, exists bool)
+	List() []V
 	ListKeys() []string
-	Replace(map[string]interface{}, string)
-	Index(indexName string, obj interface{}) ([]interface{}, error)
+	Replace(map[string]V, string)
+	Index(indexName string, obj V) ([]V, error)
 	IndexKeys(indexName, indexedValue string) ([]string, error)
 	ListIndexFuncValues(name string) []string
-	ByIndex(indexName, indexedValue string) ([]interface{}, error)
+	ByIndex(indexName, indexedValue string) ([]V, error)
 	GetIndexers() Indexers
 
 	// AddIndexers adds more indexers to this store.  If you call this after you already have data
@@ -58,6 +58,8 @@ type ThreadSafeStore interface {
 	// Resync is a no-op and is deprecated
 	Resync() error
 }
+
+type ThreadSafeStore = ThreadSafeStoreT[any]
 
 // storeIndex implements the indexing functionality for Store interface
 type storeIndex struct {
