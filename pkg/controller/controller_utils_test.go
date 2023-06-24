@@ -61,9 +61,9 @@ import (
 func NewFakeControllerExpectationsLookup(ttl time.Duration) (*ControllerExpectations, *testingclock.FakeClock) {
 	fakeTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 	fakeClock := testingclock.NewFakeClock(fakeTime)
-	ttlPolicy := &cache.TTLPolicy{TTL: ttl, Clock: fakeClock}
-	ttlStore := cache.NewFakeExpirationStore(
-		ExpKeyFunc, nil, ttlPolicy, fakeClock)
+	ttlPolicy := &cache.TTLPolicyT[*ControlleeExpectations]{TTL: ttl, Clock: fakeClock}
+	ttlStore := cache.NewFakeExpirationStoreT[*ControlleeExpectations](
+		ExpKeyFunc2, nil, ttlPolicy, fakeClock)
 	return &ControllerExpectations{ttlStore}, fakeClock
 }
 

@@ -140,6 +140,10 @@ var ExpKeyFunc = func(obj interface{}) (string, error) {
 	return "", fmt.Errorf("could not find key for obj %#v", obj)
 }
 
+var ExpKeyFunc2 = func(obj *ControlleeExpectations) (string, error) {
+	return obj.key, nil
+}
+
 // ControllerExpectationsInterface is an interface that allows users to set and wait on expectations.
 // Only abstracted out for testing.
 // Warning: if using KeyFunc it is not safe to use a single ControllerExpectationsInterface with different
@@ -159,14 +163,15 @@ type ControllerExpectationsInterface interface {
 
 // ControllerExpectations is a cache mapping controllers to what they expect to see before being woken up for a sync.
 type ControllerExpectations struct {
-	cache.Store
+	cache.StoreT[*ControlleeExpectations]
 }
+
 
 // GetExpectations returns the ControlleeExpectations of the given controller.
 func (r *ControllerExpectations) GetExpectations(controllerKey string) (*ControlleeExpectations, bool, error) {
 	exp, exists, err := r.GetByKey(controllerKey)
 	if err == nil && exists {
-		return exp.(*ControlleeExpectations), true, nil
+		return exp, true, nil
 	}
 	return nil, false, err
 }
@@ -303,7 +308,7 @@ func (e *ControlleeExpectations) MarshalLog() interface{} {
 
 // NewControllerExpectations returns a store for ControllerExpectations.
 func NewControllerExpectations() *ControllerExpectations {
-	return &ControllerExpectations{cache.NewStore(ExpKeyFunc)}
+	return &ControllerExpectations{cache.NewStoreT[*ControlleeExpectations](ExpKeyFunc2)}
 }
 
 // UIDSetKeyFunc to parse out the key from a UIDSet.

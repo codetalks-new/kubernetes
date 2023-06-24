@@ -57,3 +57,15 @@ func NewFakeExpirationStore(keyFunc KeyFunc, deletedKeys chan<- string, expirati
 		expirationPolicy: expirationPolicy,
 	}
 }
+
+// NewFakeExpirationStore creates a new instance for the ExpirationCache.
+func NewFakeExpirationStoreT[V any](keyFunc KeyFuncT[V], deletedKeys chan<- string, expirationPolicy ExpirationPolicyT[V], cacheClock clock.Clock) StoreT[V] {
+	cacheStorage := NewThreadSafeStoreT[*TimestampedEntryT[V]](IndexersT[*TimestampedEntryT[V]]{}, Indices{})
+	return &ExpirationCacheT[V]{
+		cacheStorage:     &fakeThreadSafeMapT[*TimestampedEntryT[V]]{cacheStorage, deletedKeys},
+		keyFunc:          keyFunc,
+		clock:            cacheClock,
+		expirationPolicy: expirationPolicy,
+	}
+}
+
