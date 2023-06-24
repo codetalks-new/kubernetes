@@ -18,6 +18,7 @@ package cache
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -62,18 +63,18 @@ type ThreadSafeStoreT[V any] interface {
 type ThreadSafeStore = ThreadSafeStoreT[any]
 
 // storeIndex implements the indexing functionality for Store interface
-type storeIndex struct {
+type storeIndex[V any] struct {
 	// indexers maps a name to an IndexFunc
-	indexers Indexers
+	indexers IndexersT[V]
 	// indices maps a name to an Index
 	indices Indices
 }
 
-func (i *storeIndex) reset() {
+func (i *storeIndex[V]) reset() {
 	i.indices = Indices{}
 }
 
-func (i *storeIndex) getKeysFromIndex(indexName string, obj interface{}) (sets.String, error) {
+func (i *storeIndex[V]) getKeysFromIndex(indexName string, obj V) (sets.String, error) {
 	indexFunc := i.indexers[indexName]
 	if indexFunc == nil {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
@@ -104,7 +105,7 @@ func (i *storeIndex) getKeysFromIndex(indexName string, obj interface{}) (sets.S
 	return storeKeySet, nil
 }
 
-func (i *storeIndex) getKeysByIndex(indexName, indexedValue string) (sets.String, error) {
+func (i *storeIndex[V]) getKeysByIndex(indexName, indexedValue string) (sets.String, error) {
 	indexFunc := i.indexers[indexName]
 	if indexFunc == nil {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
@@ -114,7 +115,7 @@ func (i *storeIndex) getKeysByIndex(indexName, indexedValue string) (sets.String
 	return index[indexedValue], nil
 }
 
-func (i *storeIndex) getIndexValues(indexName string) []string {
+func (i *storeIndex[V]) getIndexValues(indexName string) []string {
 	index := i.indices[indexName]
 	names := make([]string, 0, len(index))
 	for key := range index {
@@ -123,7 +124,7 @@ func (i *storeIndex) getIndexValues(indexName string) []string {
 	return names
 }
 
-func (i *storeIndex) addIndexers(newIndexers Indexers) error {
+func (i *storeIndex[V]) addIndexers(newIndexers IndexersT[V]) error {
 	oldKeys := sets.StringKeySet(i.indexers)
 	newKeys := sets.StringKeySet(newIndexers)
 
@@ -142,11 +143,14 @@ func (i *storeIndex) addIndexers(newIndexers Indexers) error {
 // - for update you must provide both the oldObj and the newObj
 // - for delete you must provide only the oldObj
 // updateIndices must be called from a function that already has a lock on the cache
-func (i *storeIndex) updateIndices(oldObj interface{}, newObj interface{}, key string) {
+func (i *storeIndex[V]) updateIndices(oldObj V, newObj V, key string) {
 	var oldIndexValues, indexValues []string
 	var err error
+
+	isOldObjValid := reflect.ValueOf(oldObj).IsValid()
+	isNewObjValid := reflect.ValueOf(newObj).IsValid()
 	for name, indexFunc := range i.indexers {
-		if oldObj != nil {
+		if isOldObjValid {
 			oldIndexValues, err = indexFunc(oldObj)
 		} else {
 			oldIndexValues = oldIndexValues[:0]
@@ -155,7 +159,7 @@ func (i *storeIndex) updateIndices(oldObj interface{}, newObj interface{}, key s
 			panic(fmt.Errorf("unable to calculate an index entry for key %q on index %q: %v", key, name, err))
 		}
 
-		if newObj != nil {
+		if isNewObjValid {
 			indexValues, err = indexFunc(newObj)
 		} else {
 			indexValues = indexValues[:0]
@@ -184,7 +188,7 @@ func (i *storeIndex) updateIndices(oldObj interface{}, newObj interface{}, key s
 	}
 }
 
-func (i *storeIndex) addKeyToIndex(key, indexValue string, index Index) {
+func (i *storeIndex[V]) addKeyToIndex(key, indexValue string, index Index) {
 	set := index[indexValue]
 	if set == nil {
 		set = sets.String{}
@@ -193,7 +197,7 @@ func (i *storeIndex) addKeyToIndex(key, indexValue string, index Index) {
 	set.Insert(key)
 }
 
-func (i *storeIndex) deleteKeyFromIndex(key, indexValue string, index Index) {
+func (i *storeIndex[V]) deleteKeyFromIndex(key, indexValue string, index Index) {
 	set := index[indexValue]
 	if set == nil {
 		return
@@ -213,7 +217,7 @@ type threadSafeMap struct {
 	items map[string]interface{}
 
 	// index implements the indexing functionality
-	index *storeIndex
+	index *storeIndex[any]
 }
 
 func (c *threadSafeMap) Add(key string, obj interface{}) {
@@ -357,7 +361,7 @@ func (c *threadSafeMap) Resync() error {
 func NewThreadSafeStore(indexers Indexers, indices Indices) ThreadSafeStore {
 	return &threadSafeMap{
 		items: map[string]interface{}{},
-		index: &storeIndex{
+		index: &storeIndex[any]{
 			indexers: indexers,
 			indices:  indices,
 		},

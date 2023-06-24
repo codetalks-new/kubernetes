@@ -87,7 +87,7 @@ const (
 )
 
 // MetaNamespaceIndexFunc is a default index function that indexes based on an object's namespace
-func MetaNamespaceIndexFunc(obj interface{}) ([]string, error) {
+func MetaNamespaceIndexFunc(obj any) ([]string, error) {
 	meta, err := meta.Accessor(obj)
 	if err != nil {
 		return []string{""}, fmt.Errorf("object has no meta: %v", err)
@@ -95,11 +95,13 @@ func MetaNamespaceIndexFunc(obj interface{}) ([]string, error) {
 	return []string{meta.GetNamespace()}, nil
 }
 
+
 // Index maps the indexed value to a set of keys in the store that match on that value
 type Index map[string]sets.String
 
 // Indexers maps a name to an IndexFunc
-type Indexers map[string]IndexFunc
+type IndexersT[V any] map[string]IndexFuncT[V]
+type Indexers = IndexersT[any]
 
 // Indices maps a name to an Index
 type Indices map[string]Index
