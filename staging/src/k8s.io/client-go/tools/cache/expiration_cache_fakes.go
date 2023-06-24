@@ -21,14 +21,16 @@ import (
 	"k8s.io/utils/clock"
 )
 
-type fakeThreadSafeMap struct {
-	ThreadSafeStore
+type fakeThreadSafeMapT[V any] struct {
+	ThreadSafeStoreT[V]
 	deletedKeys chan<- string
 }
 
-func (c *fakeThreadSafeMap) Delete(key string) {
+type fakeThreadSafeMap = fakeThreadSafeMapT[any]
+
+func (c *fakeThreadSafeMapT[V]) Delete(key string) {
 	if c.deletedKeys != nil {
-		c.ThreadSafeStore.Delete(key)
+		c.ThreadSafeStoreT.Delete(key)
 		c.deletedKeys <- key
 	}
 }
@@ -47,9 +49,9 @@ func (p *FakeExpirationPolicy) IsExpired(obj *TimestampedEntry) bool {
 
 // NewFakeExpirationStore creates a new instance for the ExpirationCache.
 func NewFakeExpirationStore(keyFunc KeyFunc, deletedKeys chan<- string, expirationPolicy ExpirationPolicy, cacheClock clock.Clock) Store {
-	cacheStorage := NewThreadSafeStore(Indexers{}, Indices{})
+	cacheStorage := NewThreadSafeStoreT[*TimestampedEntry](IndexersT[*TimestampedEntry]{}, Indices{})
 	return &ExpirationCache{
-		cacheStorage:     &fakeThreadSafeMap{cacheStorage, deletedKeys},
+		cacheStorage:     &fakeThreadSafeMapT[*TimestampedEntry]{cacheStorage, deletedKeys},
 		keyFunc:          keyFunc,
 		clock:            cacheClock,
 		expirationPolicy: expirationPolicy,
