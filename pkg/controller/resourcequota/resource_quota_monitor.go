@@ -139,13 +139,9 @@ func (qm *QuotaMonitor) controllerFor(ctx context.Context, resource schema.Group
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			// delta fifo may wrap the object in a cache.DeletedFinalStateUnknown, unwrap it
-			if deletedFinalStateUnknown, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-				obj = deletedFinalStateUnknown.Obj
-			}
 			event := &event{
 				eventType: deleteEvent,
-				obj:       obj,
+				obj:       cache.UnwrapDeleteEventObj(obj),
 				gvr:       resource,
 			}
 			qm.resourceChanges.Add(event)

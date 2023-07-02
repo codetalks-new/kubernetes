@@ -801,3 +801,11 @@ type DeletedFinalStateUnknown struct {
 	Key string
 	Obj interface{}
 }
+
+// delta fifo may wrap the object in a cache.DeletedFinalStateUnknown, unwrap it
+func UnwrapDeleteEventObj(obj any) any {
+	if d,ok := obj.(DeletedFinalStateUnknown) ; ok {
+		return d.Obj;
+	}
+	return obj
+}
