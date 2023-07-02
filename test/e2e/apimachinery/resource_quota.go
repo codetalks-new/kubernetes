@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -160,21 +161,7 @@ var _ = SIGDescribe("ResourceQuota", func() {
 	*/
 	framework.ConformanceIt("should create a ResourceQuota and capture the life of a secret.", func(ctx context.Context) {
 		ginkgo.By("Discovering how many secrets are in namespace by default")
-		found, unchanged := 0, 0
-		// On contended servers the service account controller can slow down, leading to the count changing during a run.
-		// Wait up to 5s for the count to stabilize, assuming that updates come at a consistent rate, and are not held indefinitely.
-		err := wait.PollWithContext(ctx, 1*time.Second, 30*time.Second, func(ctx context.Context) (bool, error) {
-			secrets, err := f.ClientSet.CoreV1().Secrets(f.Namespace.Name).List(ctx, metav1.ListOptions{})
-			framework.ExpectNoError(err)
-			if len(secrets.Items) == found {
-				// loop until the number of secrets has stabilized for 5 seconds
-				unchanged++
-				return unchanged > 4, nil
-			}
-			unchanged = 0
-			found = len(secrets.Items)
-			return false, nil
-		})
+		found, err := countSecrets(ctx,f.ClientSet, f.Namespace.Name)
 		framework.ExpectNoError(err)
 		defaultSecrets := fmt.Sprintf("%d", found)
 		hardSecrets := fmt.Sprintf("%d", found+1)
@@ -326,21 +313,7 @@ var _ = SIGDescribe("ResourceQuota", func() {
 		Delete the ConfigMap. Deletion MUST succeed and resource usage count against the ConfigMap object MUST be released from ResourceQuotaStatus of the ResourceQuota.
 	*/
 	framework.ConformanceIt("should create a ResourceQuota and capture the life of a configMap.", func(ctx context.Context) {
-		found, unchanged := 0, 0
-		// On contended servers the service account controller can slow down, leading to the count changing during a run.
-		// Wait up to 15s for the count to stabilize, assuming that updates come at a consistent rate, and are not held indefinitely.
-		err := wait.PollWithContext(ctx, 1*time.Second, time.Minute, func(ctx context.Context) (bool, error) {
-			configmaps, err := f.ClientSet.CoreV1().ConfigMaps(f.Namespace.Name).List(ctx, metav1.ListOptions{})
-			framework.ExpectNoError(err)
-			if len(configmaps.Items) == found {
-				// loop until the number of configmaps has stabilized for 15 seconds
-				unchanged++
-				return unchanged > 15, nil
-			}
-			unchanged = 0
-			found = len(configmaps.Items)
-			return false, nil
-		})
+		found, err := countResource[v1.ConfigMapList](ctx, f.ClientSet.CoreV1().ConfigMaps(f.Namespace.Name))
 		framework.ExpectNoError(err)
 		defaultConfigMaps := fmt.Sprintf("%d", found)
 		hardConfigMaps := fmt.Sprintf("%d", found+1)
@@ -2099,23 +2072,55 @@ func deleteResourceQuota(ctx context.Context, c clientset.Interface, namespace, 
 	return c.CoreV1().ResourceQuotas(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 }
 
-// countResourceQuota counts the number of ResourceQuota in the specified namespace
+type ListResource interface{
+	v1.ResourceQuotaList|v1.ConfigMapList|v1.SecretList
+}
+
+// may be should use generic field constraint in Go 1.22 release. currently we need to use reflect
+func getItemCount[T any](resList T) int {
+	objV := reflect.ValueOf(resList);
+	if objV.Kind() == reflect.Pointer {
+		objV = reflect.Indirect(objV)
+	}
+	fieldV	:= objV.FieldByName("Items");
+	if fieldV.IsZero() {
+		panic(fmt.Sprintf("invalid listreources without Items field,%v", resList))
+	}
+	return fieldV.Len()
+}
+
+type ListerInterface[T any] interface {
+	List(ctx context.Context, opts metav1.ListOptions) (*T, error)
+}
+
+// countResourcecounts the number of Resource
 // On contended servers the service account controller can slow down, leading to the count changing during a run.
 // Wait up to 5s for the count to stabilize, assuming that updates come at a consistent rate, and are not held indefinitely.
-func countResourceQuota(ctx context.Context, c clientset.Interface, namespace string) (int, error) {
+func countResource[T ListResource](ctx context.Context, c ListerInterface[T]) (int, error) {
 	found, unchanged := 0, 0
 	return found, wait.PollWithContext(ctx, 1*time.Second, 30*time.Second, func(ctx context.Context) (bool, error) {
-		resourceQuotas, err := c.CoreV1().ResourceQuotas(namespace).List(ctx, metav1.ListOptions{})
+		resList, err := c.List(ctx, metav1.ListOptions{})
 		framework.ExpectNoError(err)
-		if len(resourceQuotas.Items) == found {
+		itemCount := getItemCount[T](*resList)
+		if itemCount == found {
 			// loop until the number of resource quotas has stabilized for 5 seconds
 			unchanged++
 			return unchanged > 4, nil
 		}
 		unchanged = 0
-		found = len(resourceQuotas.Items)
+		found = itemCount
 		return false, nil
 	})
+}
+
+// countResourceQuota counts the number of ResourceQuota in the specified namespace
+func countResourceQuota(ctx context.Context, c clientset.Interface, namespace string) (int, error) {
+	return countResource[v1.ResourceQuotaList](ctx, c.CoreV1().ResourceQuotas(namespace))	
+}
+
+// countSecrets counts the number of Secrets in the specified namespace
+func countSecrets(ctx context.Context, c clientset.Interface, namespace string) (int, error) {
+	return countResource[v1.SecretList](ctx, c.CoreV1().Secrets(namespace))	
 }
 
 // wait for resource quota status to show the expected used resources value
